@@ -19,6 +19,7 @@
 
 package com.puppycrawl.tools.checkstyle;
 
+import org.apache.tools.ant.Project;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.contrib.java.lang.system.Assertion;
@@ -28,8 +29,10 @@ import org.junit.contrib.java.lang.system.StandardErrorStreamLog;
 import org.junit.contrib.java.lang.system.StandardOutputStreamLog;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ResourceBundle;
 
 import static org.junit.Assert.assertEquals;
@@ -105,17 +108,17 @@ public class MainTest {
                 assertEquals("", errorLog.getLog());
             }
         });
-        Main.main("-c", "/google_checks.xml", "NonexistingFile.java");
+        Main.main("-c", "src/test/resources/com/puppycrawl/tools/checkstyle/config-classname.xml",
+                "NonexistingFile.java");
     }
 
     @Test
     public void testNonExistingConfigFile()
             throws Exception {
-        exit.expectSystemExitWithStatus(-2);
+        exit.expectSystemExitWithStatus(-1);
         exit.checkAssertionAfterwards(new Assertion() {
             public void checkAssertion() {
-                assertEquals(String.format("unable to find src/main/resources/non_existing_config.xml%n"
-                        + "Checkstyle ends with 1 errors.%n"),
+                assertEquals(String.format("unable to find 'src/main/resources/non_existing_config.xml'.%n"),
                     standardLog.getLog());
                 assertEquals("", errorLog.getLog());
             }
@@ -135,7 +138,7 @@ public class MainTest {
                 assertEquals("", errorLog.getLog());
             }
         });
-        Main.main("-c", "/google_checks.xml", "-f" , "xmlp",
+        Main.main("-c", "src/test/resources/com/puppycrawl/tools/checkstyle/config-classname.xml", "-f" , "xmlp",
                 "src/test/resources/com/puppycrawl/tools/checkstyle/InputMain.java");
     }
 
@@ -351,5 +354,35 @@ public class MainTest {
         Main.main("-c", "src/test/resources/com/puppycrawl/tools/checkstyle/"
                 + "config-Incorrect.xml",
                 "src/test/resources/com/puppycrawl/tools/checkstyle/InputMain.java");
+    }
+
+    @Test
+    public void testExistingConfigFileBundledInJar()
+            throws Exception {
+        exit.checkAssertionAfterwards(new Assertion() {
+            public void checkAssertion() {
+                assertEquals(String.format("Starting audit...%n"
+                        + "/home/bhavik/Documents/checkstyle/src/test/resources/com/puppycrawl/tools/checkstyle/InputMain.java:0: Missing package-info.java file.%n"
+                        + "/home/bhavik/Documents/checkstyle/src/test/resources/com/puppycrawl/tools/checkstyle/InputMain.java:3: Missing a Javadoc comment.%n"
+                        + "/home/bhavik/Documents/checkstyle/src/test/resources/com/puppycrawl/tools/checkstyle/InputMain.java:5: Missing a Javadoc comment.%n"
+                        + "Audit done.%n"
+                        + "Checkstyle ends with 3 errors.%n"), standardLog.getLog());
+                assertEquals("", errorLog.getLog());
+            }
+        });
+        String[] cmdArray = {"java","-jar","target/checkstyle-6.9-SNAPSHOT-all.jar","-c",
+                "/sun_checks.xml","src/test/resources/com/puppycrawl/tools/checkstyle/InputMain.java"};
+        
+        // make jar file
+        Process process1 = Runtime.getRuntime().exec("mvn clean package -Passembly -Dlinkcheck.skip=true",null);
+        process1.waitFor();
+        // Execute command
+        Process process2 = Runtime.getRuntime().exec(cmdArray,null);
+        process2.waitFor();
+        BufferedReader br = new BufferedReader(new InputStreamReader(process2.getInputStream()));
+        String s = null;
+        while ((s = br.readLine()) != null) {
+            System.out.println(s);
+        }
     }
 }
